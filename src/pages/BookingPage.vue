@@ -130,8 +130,21 @@
             </label>
           </div>
 
-          <button class="btn btn-dark btn-lg rounded-pill px-4 mt-4" type="button">
-            Confirm Booking
+          <div v-if="serverMessage" class="booking-feedback booking-feedback-success mt-4">
+            {{ serverMessage }}
+          </div>
+
+          <div v-if="serverError" class="booking-feedback booking-feedback-error mt-4">
+            {{ serverError }}
+          </div>
+
+          <button
+            class="btn btn-dark btn-lg rounded-pill px-4 mt-4"
+            type="button"
+            :disabled="isSubmitting"
+            @click="submitBooking"
+          >
+            {{ isSubmitting ? "Submitting..." : "Confirm Booking" }}
           </button>
         </section>
 
@@ -166,10 +179,13 @@ const { currentUser } = useAuth();
 const selectedSession = ref(bookingSessions[0]);
 const selectedSessionType = ref("All");
 const selectedPriceFilter = ref("all");
+const isSubmitting = ref(false);
+const serverMessage = ref("");
+const serverError = ref("");
 
 const form = reactive({
-  name: "",
-  email: "",
+  name: currentUser.value?.name || "",
+  email: currentUser.value?.email || "",
   date: "",
   notes: ""
 });
@@ -185,6 +201,50 @@ const sessionTypes = ["All", ...bookingSessions.map((session) => session.title)]
 
 function selectSession(session) {
   selectedSession.value = session;
+}
+
+async function submitBooking() {
+  serverMessage.value = "";
+  serverError.value = "";
+
+  if (!form.name.trim() || !form.email.trim() || !form.date || !selectedSessionTitle.value) {
+    serverError.value = "Please complete your name, email, date, and session before booking.";
+    return;
+  }
+
+  isSubmitting.value = true;
+
+  try {
+    const response = await fetch("/api/bookings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: form.name,
+        email: form.email,
+        date: form.date,
+        session: selectedSessionTitle.value,
+        notes: form.notes
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.message || "We could not save your booking right now.");
+    }
+
+    serverMessage.value = `${result.message} Reference: ${result.booking.id}. Contact: ${result.contactEmail}`;
+    form.date = "";
+    form.notes = "";
+  } catch (error) {
+    serverError.value = error instanceof Error
+      ? error.message
+      : "We could not save your booking right now.";
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 
 const selectedSessionTitle = computed(() => selectedSession.value?.title || "");

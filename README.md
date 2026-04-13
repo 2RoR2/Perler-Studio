@@ -1,12 +1,13 @@
 # Perler Beads Studio
 
-Perler Beads Studio is a pass-level frontend app for the deployment task. It includes one clean home page with:
+Perler Beads Studio is a Vue + Node.js web app for planning bead patterns, browsing products, and booking studio sessions.
 
-- An app title
-- A short description
-- A simple banner-style visual
-- A call-to-action button
-- A layout that works in the browser and is ready to deploy on Render
+It now includes:
+
+- A Vue frontend built with Vite
+- An Express server that serves the app
+- A booking API endpoint at `/api/bookings`
+- Render-ready build/start commands and environment variables
 
 ## Run locally
 
@@ -16,7 +17,7 @@ Perler Beads Studio is a pass-level frontend app for the deployment task. It inc
 npm install
 ```
 
-2. Start the development server:
+2. Start the frontend development server:
 
 ```bash
 npm run dev
@@ -28,16 +29,28 @@ npm run dev
 npm run build
 ```
 
+4. Start the Node web server after building:
+
+```bash
+npm start
+```
+
 ## Render deployment
 
-Create a new **Static Site** on Render and connect this GitHub repository.
+Create a new **Web Service** on Render and connect this GitHub repository.
 
 Use these settings:
 
 - Build Command: `npm install && npm run build`
-- Publish Directory: `dist`
+- Start Command: `npm start`
 
-## Pass evidence checklist
+Environment variables:
+
+- `APP_NAME=Perler Beads Studio`
+- `BOOKING_EMAIL=bookings@perlerbeadsstudio.example`
+- `NODE_VERSION=22`
+
+## Credit evidence checklist
 
 Take screenshots of:
 
@@ -45,9 +58,12 @@ Take screenshots of:
 - Your Render dashboard
 - Your Render deployment settings
 - The live public URL working in the browser
+- Your environment variables in Render
+- Your service suspended or deleted in Render to demonstrate deactivation
 
 ## Project structure
 
-- `src/App.vue` contains the single home page
-- `src/styles.css` contains the layout and styling
-- `vite.config.js` provides the Vue + Vite setup
+- `src/` contains the Vue frontend
+- `server.js` runs the Express backend
+- `src/pages/BookingPage.vue` submits bookings to the backend API
+- `render.yaml` provides the Render web-service setup

@@ -1601,6 +1601,25 @@ button {
   gap: 0.9rem;
 }
 
+.booking-feedback {
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.booking-feedback-success {
+  background: rgba(119, 221, 119, 0.16);
+  border: 1px solid rgba(83, 176, 83, 0.28);
+  color: #1f6f38;
+}
+
+.booking-feedback-error {
+  background: rgba(255, 110, 110, 0.12);
+  border: 1px solid rgba(214, 69, 69, 0.22);
+  color: #9d1c1c;
+}
+
 .gallery-swatch {
   min-height: 220px;
 }
