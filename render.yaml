@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: pearler-beads-studio
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
