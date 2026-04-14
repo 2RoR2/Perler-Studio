@@ -18,7 +18,6 @@
         <RouterLink to="/gallery" class="top-pill nav-link-pill">Ideas</RouterLink>
         <RouterLink to="/store" class="top-pill nav-link-pill">Store</RouterLink>
         <RouterLink to="/booking" class="top-pill nav-link-pill">Booking</RouterLink>
-        <RouterLink to="/database" class="top-pill nav-link-pill">Database</RouterLink>
         <RouterLink to="/patterns" class="top-pill nav-link-pill">Steps</RouterLink>
       </nav>
 

@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
 import BookingPage from "../pages/BookingPage.vue";
-import DatabasePage from "../pages/DatabasePage.vue";
 import GalleryPage from "../pages/GalleryPage.vue";
 import HomePage from "../pages/HomePage.vue";
 import LoginPage from "../pages/LoginPage.vue";
@@ -20,11 +19,6 @@ const router = createRouter({
       path: "/gallery",
       name: "gallery",
       component: GalleryPage
-    },
-    {
-      path: "/database",
-      name: "database",
-      component: DatabasePage
     },
     {
       path: "/login",
