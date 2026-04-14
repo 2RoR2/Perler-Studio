@@ -20,7 +20,8 @@
           <form class="auth-form mt-4" @submit.prevent="submitForm">
             <label class="booking-field">
               <span>Email</span>
-              <input v-model="form.email" type="email" placeholder="you@example.com" />
+              <input v-model="form.email" type="email" placeholder="yourname@example.com" />
+              <small class="auth-field-hint">Email must be lowercase.</small>
             </label>
 
             <label class="booking-field">
@@ -28,14 +29,22 @@
               <input v-model="form.password" type="password" placeholder="Enter password" />
             </label>
 
-            <button class="btn btn-dark btn-lg rounded-pill px-4 mt-3" type="submit">
-              Login
+            <button
+              class="btn btn-dark btn-lg rounded-pill px-4 mt-3"
+              type="submit"
+              :disabled="isSubmitting || !canSubmit"
+            >
+              {{ isSubmitting ? "Logging In..." : "Login" }}
             </button>
           </form>
 
           <p class="auth-helper mt-4 mb-0">
             Need an account?
             <RouterLink to="/signup">Create one here</RouterLink>
+          </p>
+          <p class="auth-helper mt-2 mb-0">
+            Forgot your password?
+            <RouterLink to="/forgot-password">Reset it here</RouterLink>
           </p>
         </section>
       </div>
@@ -46,8 +55,8 @@
           <h2 class="pattern-title">{{ currentUser ? "You are signed in" : "Welcome back" }}</h2>
           <p class="pattern-copy">
             {{ currentUser
-              ? `${currentUser.name} is currently signed in on this browser.`
-              : "Use your account to keep a simple browser-based login for this project." }}
+              ? `${currentUser.name} is currently signed in from the database-backed account system.`
+              : "Use your account to log in through the backend and unlock store and studio features." }}
           </p>
 
           <div v-if="currentUser" class="auth-user mt-4">
@@ -70,28 +79,39 @@
 </template>
 
 <script setup>
-import { reactive, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import { useAuth } from "../modules/useAuth";
 
 const { currentUser, login, logout } = useAuth();
 
 const errorMessage = ref("");
 const statusMessage = ref("");
+const isSubmitting = ref(false);
 const form = reactive({
   email: "",
   password: ""
 });
 
-function submitForm() {
+const emailIsLowercase = computed(() => form.email === form.email.toLowerCase());
+const canSubmit = computed(() => Boolean(form.email.trim()) && Boolean(form.password) && emailIsLowercase.value);
+
+async function submitForm() {
   errorMessage.value = "";
   statusMessage.value = "";
+  isSubmitting.value = true;
 
   try {
-    login(form);
+    if (!emailIsLowercase.value) {
+      throw new Error("Email must be lowercase.");
+    }
+
+    await login(form);
     statusMessage.value = "Logged in successfully.";
     form.password = "";
   } catch (error) {
     errorMessage.value = error.message;
+  } finally {
+    isSubmitting.value = false;
   }
 }
 

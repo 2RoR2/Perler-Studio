@@ -6,7 +6,9 @@ It now includes:
 
 - A Vue frontend built with Vite
 - An Express server that serves the app
-- A booking API endpoint at `/api/bookings`
+- A booking API that reads and writes booking records
+- Database-backed user signup and login routes
+- Render PostgreSQL support for persistent booking data
 - Render-ready build/start commands and environment variables
 
 ## Run locally
@@ -48,7 +50,9 @@ Environment variables:
 
 - `APP_NAME=Perler Beads Studio`
 - `BOOKING_EMAIL=bookings@perlerbeadsstudio.example`
+- `DATABASE_URL=...` provided by Render Postgres
 - `NODE_VERSION=22`
+- `NODE_ENV=production`
 
 ## Credit evidence checklist
 
@@ -60,6 +64,23 @@ Take screenshots of:
 - The live public URL working in the browser
 - Your environment variables in Render
 - Your service suspended or deleted in Render to demonstrate deactivation
+
+## High Distinction path
+
+To complete the database requirement on Render:
+
+1. Create or sync the PostgreSQL database from `render.yaml`
+2. Make sure the web service receives `DATABASE_URL`
+3. Deploy the app as a Render web service
+4. Submit a booking from the live website
+5. Refresh the booking list to show the saved database record
+
+This demonstrates:
+
+- database write: `POST /api/bookings`
+- database read: `GET /api/bookings`
+- user account storage: `POST /api/signup` and `POST /api/login`
+- persistent storage through Render PostgreSQL
 
 ## Project structure
 

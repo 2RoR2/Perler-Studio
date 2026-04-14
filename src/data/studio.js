@@ -62,6 +62,7 @@ export const storeProducts = [
     name: "Starter Bead Jar Set",
     category: "Beads",
     price: "$18",
+    priceCents: 1800,
     description: "A colorful starter mix with core shades for characters, icons, and beginner bead art boards.",
     badge: "Best Seller",
     image: "perler-jar-set"
@@ -71,6 +72,7 @@ export const storeProducts = [
     name: "Pastel Beads Refill Kit",
     category: "Beads",
     price: "$22",
+    priceCents: 2200,
     description: "Soft pink, cream, lilac, and mint bead refills for cute palettes and decorative mini builds.",
     badge: "Cute Colors",
     image: "perler-pastel-refill"
@@ -80,6 +82,7 @@ export const storeProducts = [
     name: "Outline Colors Pack",
     category: "Beads",
     price: "$14",
+    priceCents: 1400,
     description: "Black, charcoal, gray, and white tones for clean outlines, shading, and strong contrast work.",
     badge: "Core Pack",
     image: "perler-outline-color"
@@ -89,6 +92,7 @@ export const storeProducts = [
     name: "Square Pegboard Plate",
     category: "Boards",
     price: "$9",
+    priceCents: 900,
     description: "Classic pegboard for small and medium Perler Beads layouts with even spacing and clear alignment.",
     badge: "Plate Ready",
     image: "perler-square"
@@ -98,6 +102,7 @@ export const storeProducts = [
     name: "Ironing + Tweezers Bundle",
     category: "Equipment",
     price: "$16",
+    priceCents: 1600,
     description: "Essential finishing tools with tweezers, ironing paper, and a compact smoothing press guide.",
     badge: "Studio Tools",
     image: "perler-iron-tweezer"
@@ -107,6 +112,7 @@ export const storeProducts = [
     name: "Studio Storage Box",
     category: "Equipment",
     price: "$26",
+    priceCents: 2600,
     description: "A compartment organizer for sorting bead colors, keeping kits tidy, and prepping build sessions faster.",
     badge: "Organizer",
     image: "perler-storage-box"

@@ -1,22 +1,8 @@
 import { computed, ref } from "vue";
 
-const USERS_KEY = "perler-studio-users";
 const CURRENT_USER_KEY = "perler-studio-current-user";
 
-const users = ref(loadUsers());
 const currentUser = ref(loadCurrentUser());
-
-function loadUsers() {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  try {
-    return JSON.parse(window.localStorage.getItem(USERS_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
 
 function loadCurrentUser() {
   if (typeof window === "undefined") {
@@ -30,12 +16,6 @@ function loadCurrentUser() {
   }
 }
 
-function persistUsers() {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(USERS_KEY, JSON.stringify(users.value));
-  }
-}
-
 function persistCurrentUser() {
   if (typeof window !== "undefined") {
     window.localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser.value));
@@ -45,46 +25,52 @@ function persistCurrentUser() {
 export function useAuth() {
   const isAuthenticated = computed(() => Boolean(currentUser.value));
 
-  function signUp({ name, email, password }) {
-    const normalizedEmail = email.trim().toLowerCase();
+  function normalizeEmail(email) {
+    return String(email || "").trim().toLowerCase();
+  }
 
-    if (users.value.some((user) => user.email === normalizedEmail)) {
-      throw new Error("An account with this email already exists.");
+  async function signUp({ name, email, password }) {
+    const response = await fetch("/api/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: name.trim(),
+        email: normalizeEmail(email),
+        password
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.message || "Could not create account.");
     }
 
-    const nextUser = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name: name.trim(),
-      email: normalizedEmail,
-      password
-    };
-
-    users.value = [...users.value, nextUser];
-    persistUsers();
-
-    currentUser.value = {
-      id: nextUser.id,
-      name: nextUser.name,
-      email: nextUser.email
-    };
+    currentUser.value = result.user;
     persistCurrentUser();
   }
 
-  function login({ email, password }) {
-    const normalizedEmail = email.trim().toLowerCase();
-    const foundUser = users.value.find(
-      (user) => user.email === normalizedEmail && user.password === password
-    );
+  async function login({ email, password }) {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        email: normalizeEmail(email),
+        password
+      })
+    });
 
-    if (!foundUser) {
-      throw new Error("Incorrect email or password.");
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.message || "Could not log in.");
     }
 
-    currentUser.value = {
-      id: foundUser.id,
-      name: foundUser.name,
-      email: foundUser.email
-    };
+    currentUser.value = result.user;
     persistCurrentUser();
   }
 

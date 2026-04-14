@@ -146,6 +146,43 @@
           >
             {{ isSubmitting ? "Submitting..." : "Confirm Booking" }}
           </button>
+
+          <div class="booking-history mt-4">
+            <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
+              <div>
+                <p class="pattern-label mb-1">Saved bookings</p>
+                <p class="pattern-copy">
+                  Live readback from the {{ bookingDatabase === "postgres" ? "PostgreSQL database" : "server memory fallback" }}.
+                </p>
+              </div>
+              <button class="btn btn-light rounded-pill px-4" type="button" @click="loadBookings">
+                Refresh
+              </button>
+            </div>
+
+            <div v-if="bookingsLoading" class="booking-history-empty mt-3">
+              Loading saved bookings...
+            </div>
+
+            <div v-else-if="!bookingList.length" class="booking-history-empty mt-3">
+              No bookings saved yet.
+            </div>
+
+            <div v-else class="booking-history-list mt-3">
+              <article
+                v-for="booking in bookingList"
+                :key="booking.id"
+                class="booking-history-card"
+              >
+                <div class="d-flex justify-content-between gap-3 flex-wrap">
+                  <strong>{{ booking.session }}</strong>
+                  <span>{{ booking.date }}</span>
+                </div>
+                <p class="mb-1">{{ booking.name }} - {{ booking.email }}</p>
+                <p class="mb-0">{{ booking.notes || "No extra notes." }}</p>
+              </article>
+            </div>
+          </div>
         </section>
 
         <section v-else class="booking-form auth-required rounded-5 p-4 p-lg-5">
@@ -171,7 +208,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useAuth } from "../modules/useAuth";
 import { bookingSessions } from "../data/studio";
 
@@ -182,6 +219,9 @@ const selectedPriceFilter = ref("all");
 const isSubmitting = ref(false);
 const serverMessage = ref("");
 const serverError = ref("");
+const bookingList = ref([]);
+const bookingsLoading = ref(false);
+const bookingDatabase = ref("memory");
 
 const form = reactive({
   name: currentUser.value?.name || "",
@@ -201,6 +241,28 @@ const sessionTypes = ["All", ...bookingSessions.map((session) => session.title)]
 
 function selectSession(session) {
   selectedSession.value = session;
+}
+
+async function loadBookings() {
+  bookingsLoading.value = true;
+
+  try {
+    const response = await fetch("/api/bookings");
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.message || "Could not load saved bookings.");
+    }
+
+    bookingList.value = result.bookings;
+    bookingDatabase.value = result.database || "memory";
+  } catch (error) {
+    serverError.value = error instanceof Error
+      ? error.message
+      : "Could not load saved bookings.";
+  } finally {
+    bookingsLoading.value = false;
+  }
 }
 
 async function submitBooking() {
@@ -238,6 +300,7 @@ async function submitBooking() {
     serverMessage.value = `${result.message} Reference: ${result.booking.id}. Contact: ${result.contactEmail}`;
     form.date = "";
     form.notes = "";
+    await loadBookings();
   } catch (error) {
     serverError.value = error instanceof Error
       ? error.message
@@ -266,5 +329,9 @@ const filteredSessions = computed(() => {
 
     return matchesType && matchesPrice;
   });
+});
+
+onMounted(() => {
+  loadBookings();
 });
 </script>

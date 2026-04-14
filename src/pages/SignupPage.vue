@@ -20,12 +20,14 @@
           <form class="auth-form mt-4" @submit.prevent="submitForm">
             <label class="booking-field">
               <span>Name</span>
-              <input v-model="form.name" type="text" placeholder="Your full name" />
+              <input v-model="form.name" type="text" placeholder="Yourname Surname" />
+              <small class="auth-field-hint">Name must start with a capital letter.</small>
             </label>
 
             <label class="booking-field">
               <span>Email</span>
-              <input v-model="form.email" type="email" placeholder="you@example.com" />
+              <input v-model="form.email" type="email" placeholder="yourname@example.com" />
+              <small class="auth-field-hint">Email must be lowercase.</small>
             </label>
 
             <label class="booking-field">
@@ -33,8 +35,31 @@
               <input v-model="form.password" type="password" placeholder="Create password" />
             </label>
 
-            <button class="btn btn-dark btn-lg rounded-pill px-4 mt-3" type="submit">
-              Create Account
+            <div class="auth-password-rules">
+              <p class="auth-password-title mb-2">Password requirements</p>
+              <p :class="passwordChecks.length ? 'auth-password-pass' : 'auth-password-fail'">
+                8 or more characters
+              </p>
+              <p :class="passwordChecks.uppercase ? 'auth-password-pass' : 'auth-password-fail'">
+                At least 1 uppercase letter
+              </p>
+              <p :class="passwordChecks.lowercase ? 'auth-password-pass' : 'auth-password-fail'">
+                At least 1 lowercase letter
+              </p>
+              <p :class="passwordChecks.number ? 'auth-password-pass' : 'auth-password-fail'">
+                At least 1 number
+              </p>
+              <p :class="passwordChecks.special ? 'auth-password-pass' : 'auth-password-fail'">
+                At least 1 special character
+              </p>
+            </div>
+
+            <button
+              class="btn btn-dark btn-lg rounded-pill px-4 mt-3"
+              type="submit"
+              :disabled="isSubmitting || !canSubmit"
+            >
+              {{ isSubmitting ? "Creating Account..." : "Create Account" }}
             </button>
           </form>
 
@@ -51,8 +76,8 @@
           <h2 class="pattern-title">{{ currentUser ? "Account ready" : "Create your account" }}</h2>
           <p class="pattern-copy">
             {{ currentUser
-              ? `${currentUser.name} has just created an account on this browser.`
-              : "Sign up to get a simple browser-based account for this project UI." }}
+              ? `${currentUser.name} has just created a database-backed account.`
+              : "Sign up to create an account stored in the backend database for this project." }}
           </p>
 
           <div v-if="currentUser" class="auth-user mt-4">
@@ -66,33 +91,71 @@
 </template>
 
 <script setup>
-import { reactive, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import { useAuth } from "../modules/useAuth";
 
 const { currentUser, signUp } = useAuth();
 
 const errorMessage = ref("");
 const statusMessage = ref("");
+const isSubmitting = ref(false);
 const form = reactive({
   name: "",
   email: "",
   password: ""
 });
 
-function submitForm() {
+const nameStartsWithCapital = computed(() => /^[A-Z]/.test(form.name.trim()));
+const emailIsLowercase = computed(() => form.email === form.email.toLowerCase());
+
+const passwordChecks = computed(() => ({
+  length: form.password.length >= 8,
+  uppercase: /[A-Z]/.test(form.password),
+  lowercase: /[a-z]/.test(form.password),
+  number: /\d/.test(form.password),
+  special: /[^A-Za-z\d]/.test(form.password)
+}));
+
+const canSubmit = computed(() =>
+  Boolean(form.name.trim()) &&
+  Boolean(form.email.trim()) &&
+  Boolean(form.password) &&
+  nameStartsWithCapital.value &&
+  emailIsLowercase.value &&
+  Object.values(passwordChecks.value).every(Boolean)
+);
+
+async function submitForm() {
   errorMessage.value = "";
   statusMessage.value = "";
+  isSubmitting.value = true;
 
   try {
     if (!form.name.trim()) {
       throw new Error("Please enter your name.");
     }
 
-    signUp(form);
+    if (!nameStartsWithCapital.value) {
+      throw new Error("Name must start with a capital letter.");
+    }
+
+    if (!emailIsLowercase.value) {
+      throw new Error("Email must be lowercase.");
+    }
+
+    if (!Object.values(passwordChecks.value).every(Boolean)) {
+      throw new Error(
+        "Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and special character."
+      );
+    }
+
+    await signUp(form);
     statusMessage.value = "Account created successfully.";
     form.password = "";
   } catch (error) {
     errorMessage.value = error.message;
+  } finally {
+    isSubmitting.value = false;
   }
 }
 </script>

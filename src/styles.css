@@ -1410,6 +1410,34 @@ button {
   text-decoration: none;
 }
 
+.auth-password-rules {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.auth-password-title {
+  color: #111827;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.auth-password-rules p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.auth-password-pass {
+  color: #1f6f38;
+}
+
+.auth-password-fail {
+  color: rgba(17, 24, 39, 0.7);
+}
+
 .filter-bar {
   display: grid;
   gap: 1rem;
@@ -1578,6 +1606,12 @@ button {
   font-weight: 600;
 }
 
+.auth-field-hint {
+  color: rgba(17, 24, 39, 0.62);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .booking-field input,
 .booking-field textarea {
   border: 1px solid rgba(17, 24, 39, 0.14);
@@ -1618,6 +1652,107 @@ button {
   background: rgba(255, 110, 110, 0.12);
   border: 1px solid rgba(214, 69, 69, 0.22);
   color: #9d1c1c;
+}
+
+.booking-history {
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
+  padding-top: 1.25rem;
+}
+
+.booking-history-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.booking-history-card,
+.booking-history-empty {
+  padding: 1rem 1.05rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  color: #111827;
+}
+
+.booking-history-card p,
+.booking-history-empty {
+  color: rgba(17, 24, 39, 0.72);
+}
+
+.store-cart-summary {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.store-summary-sticky {
+  position: sticky;
+  top: 1.25rem;
+}
+
+.store-cart-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.store-cart-stat {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.store-cart-stat span {
+  color: rgba(17, 24, 39, 0.62);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.store-cart-stat strong {
+  color: #111827;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.15rem;
+}
+
+.store-cart-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.store-cart-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.store-cart-item p {
+  color: rgba(17, 24, 39, 0.68);
+}
+
+.store-cart-line-total {
+  font-weight: 700;
+}
+
+.store-cart-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.store-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #111827;
+  font-size: 1rem;
 }
 
 .gallery-swatch {
