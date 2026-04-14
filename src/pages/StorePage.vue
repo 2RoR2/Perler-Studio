@@ -38,11 +38,15 @@
               </div>
             </div>
 
-            <div v-if="!cartItems.length" class="booking-history-empty mt-3">
+            <div v-if="cartLoading" class="booking-history-empty mt-3">
+              Loading your saved cart...
+            </div>
+
+            <div v-else-if="!cartItems.length" class="booking-history-empty mt-3">
               Your cart is empty. Add bead kits, boards, or tools to see them here.
             </div>
 
-            <div v-if="cartItems.length" class="store-cart-list mt-3">
+            <div v-else class="store-cart-list mt-3">
               <article v-for="item in cartItems" :key="item.id" class="store-cart-item">
                 <div>
                   <strong>{{ item.name }}</strong>
@@ -184,9 +188,10 @@ import perlerStorageBox from "../images/perler_storage_box.jpg";
 import { storeProducts } from "../data/studio";
 
 const { currentUser } = useAuth();
-const cart = reactive(loadCart());
+const cart = reactive({});
 const selectedCategory = ref("All");
 const cartMessage = ref("");
+const cartLoading = ref(false);
 
 const storeImages = {
   "perler-iron-tweezer": perlerIronTweezer,
@@ -199,54 +204,107 @@ const storeImages = {
 
 const storeCategories = ["All", ...new Set(storeProducts.map((product) => product.category))];
 
-function loadCart() {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  try {
-    return JSON.parse(window.localStorage.getItem("perler-store-cart") || "{}");
-  } catch {
-    return {};
-  }
-}
-
-watch(
-  cart,
-  (value) => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("perler-store-cart", JSON.stringify(value));
-    }
-  },
-  { deep: true }
-);
-
-function addToCart(productId) {
-  cart[productId] = (cart[productId] || 0) + 1;
-}
-
-function removeFromCart(productId) {
-  if (!cart[productId]) {
-    return;
-  }
-
-  cart[productId] -= 1;
-
-  if (cart[productId] <= 0) {
-    delete cart[productId];
-  }
-}
-
-function clearCart() {
+function replaceCart(items = []) {
   Object.keys(cart).forEach((key) => {
     delete cart[key];
   });
 
-  cartMessage.value = "Cart cleared.";
+  items.forEach((item) => {
+    cart[item.id] = item.quantity;
+  });
+}
+
+async function loadCart() {
+  cartMessage.value = "";
+
+  if (!currentUser.value?.id) {
+    replaceCart([]);
+    return;
+  }
+
+  cartLoading.value = true;
+
+  try {
+    const response = await fetch(`/api/cart?userId=${encodeURIComponent(currentUser.value.id)}`);
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.message || "Could not load cart.");
+    }
+
+    replaceCart(result.items);
+  } catch (error) {
+    cartMessage.value = error instanceof Error ? error.message : "Could not load cart.";
+  } finally {
+    cartLoading.value = false;
+  }
+}
+
+async function updateCartItem(productId, quantity) {
+  if (!currentUser.value?.id) {
+    cartMessage.value = "Please log in before changing your cart.";
+    return;
+  }
+
+  cartMessage.value = "";
+
+  try {
+    const response = await fetch(`/api/cart/items/${encodeURIComponent(productId)}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        userId: currentUser.value.id,
+        quantity
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.message || "Could not update cart.");
+    }
+
+    replaceCart(result.items);
+  } catch (error) {
+    cartMessage.value = error instanceof Error ? error.message : "Could not update cart.";
+  }
+}
+
+function addToCart(productId) {
+  updateCartItem(productId, (cart[productId] || 0) + 1);
+}
+
+function removeFromCart(productId) {
+  updateCartItem(productId, Math.max((cart[productId] || 0) - 1, 0));
+}
+
+async function clearCart() {
+  if (!currentUser.value?.id) {
+    cartMessage.value = "Please log in before changing your cart.";
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/cart?userId=${encodeURIComponent(currentUser.value.id)}`, {
+      method: "DELETE"
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.message || "Could not clear cart.");
+    }
+
+    replaceCart([]);
+    cartMessage.value = "Cart cleared.";
+  } catch (error) {
+    cartMessage.value = error instanceof Error ? error.message : "Could not clear cart.";
+  }
 }
 
 function saveCartNotice() {
-  cartMessage.value = "Your cart is saved in this browser and ready for later.";
+  cartMessage.value = "Your cart is saved in the PostgreSQL database.";
 }
 
 const totalItems = computed(() =>
@@ -282,4 +340,12 @@ const filteredProducts = computed(() => {
 
   return storeProducts.filter((product) => product.category === selectedCategory.value);
 });
+
+watch(
+  () => currentUser.value?.id,
+  () => {
+    loadCart();
+  },
+  { immediate: true }
+);
 </script>

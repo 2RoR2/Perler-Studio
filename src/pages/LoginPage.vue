@@ -42,10 +42,6 @@
             Need an account?
             <RouterLink to="/signup">Create one here</RouterLink>
           </p>
-          <p class="auth-helper mt-2 mb-0">
-            Forgot your password?
-            <RouterLink to="/forgot-password">Reset it here</RouterLink>
-          </p>
         </section>
       </div>
 

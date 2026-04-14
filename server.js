@@ -1,9 +1,8 @@
 import express from "express";
-import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import nodemailer from "nodemailer";
 import pg from "pg";
+import { storeProducts } from "./src/data/studio.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,31 +13,14 @@ const port = Number.parseInt(process.env.PORT || "3000", 10);
 const appName = process.env.APP_NAME || "Perler Beads Studio";
 const bookingEmail = process.env.BOOKING_EMAIL || "studio@example.com";
 const databaseUrl = process.env.DATABASE_URL || "";
-const publicAppUrl = process.env.PUBLIC_APP_URL || `http://localhost:${port}`;
-const smtpHost = process.env.SMTP_HOST || "";
-const smtpPort = Number.parseInt(process.env.SMTP_PORT || "587", 10);
-const smtpUser = process.env.SMTP_USER || "";
-const smtpPass = process.env.SMTP_PASS || "";
-const smtpFrom = process.env.SMTP_FROM || smtpUser || bookingEmail;
-const smtpSecure = String(process.env.SMTP_SECURE || "false").toLowerCase() === "true";
 const bookings = [];
 const passwordPolicy = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
 const capitalizedNamePolicy = /^[A-Z][A-Za-z' -]*$/;
+const productCatalog = new Map(storeProducts.map((product) => [product.id, product]));
 const pool = databaseUrl
   ? new Pool({
       connectionString: databaseUrl,
       ssl: databaseUrl.includes("localhost") ? false : { rejectUnauthorized: false }
-    })
-  : null;
-const mailTransport = smtpHost && smtpUser && smtpPass
-  ? nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass
-      }
     })
   : null;
 
@@ -70,14 +52,14 @@ async function initializeDatabase() {
   `);
 
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    CREATE TABLE IF NOT EXISTS cart_items (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
-      email TEXT NOT NULL,
-      token_hash TEXT NOT NULL UNIQUE,
-      expires_at TIMESTAMPTZ NOT NULL,
-      used_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      product_id TEXT NOT NULL,
+      quantity INTEGER NOT NULL CHECK (quantity >= 0),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, product_id)
     )
   `);
 }
@@ -122,6 +104,24 @@ async function createUserAccount({ name, email, password }) {
   return result.rows[0];
 }
 
+async function findUserById(id) {
+  if (!pool) {
+    return null;
+  }
+
+  const result = await pool.query(
+    `
+      SELECT id, name, email, created_at AS "createdAt"
+      FROM users
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [id]
+  );
+
+  return result.rows[0] || null;
+}
+
 function isStrongPassword(password) {
   return passwordPolicy.test(String(password || ""));
 }
@@ -130,120 +130,121 @@ function isCapitalizedName(name) {
   return capitalizedNamePolicy.test(String(name || "").trim());
 }
 
-function hashResetToken(token) {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
-
-async function createPasswordResetToken(user) {
+async function listCartItems(userId) {
   if (!pool) {
-    throw new Error("Database connection is required for password recovery.");
-  }
-
-  const rawToken = crypto.randomBytes(32).toString("hex");
-  const tokenHash = hashResetToken(rawToken);
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
-
-  await pool.query(
-    `
-      INSERT INTO password_reset_tokens (id, user_id, email, token_hash, expires_at)
-      VALUES ($1, $2, $3, $4, $5)
-    `,
-    [
-      `RST-${Date.now().toString(36).toUpperCase()}`,
-      user.id,
-      user.email,
-      tokenHash,
-      expiresAt.toISOString()
-    ]
-  );
-
-  return {
-    rawToken,
-    expiresAt
-  };
-}
-
-async function findValidResetToken(rawToken) {
-  if (!pool) {
-    return null;
+    throw new Error("Database connection is required for cart storage.");
   }
 
   const result = await pool.query(
     `
-      SELECT id, user_id AS "userId", email, expires_at AS "expiresAt", used_at AS "usedAt"
-      FROM password_reset_tokens
-      WHERE token_hash = $1
-      LIMIT 1
+      SELECT product_id AS "productId", quantity
+      FROM cart_items
+      WHERE user_id = $1 AND quantity > 0
+      ORDER BY updated_at DESC
     `,
-    [hashResetToken(rawToken)]
+    [userId]
   );
 
-  const tokenRecord = result.rows[0];
+  return result.rows
+    .map((row) => {
+      const product = productCatalog.get(row.productId);
 
-  if (!tokenRecord) {
-    return null;
-  }
+      if (!product) {
+        return null;
+      }
 
-  if (tokenRecord.usedAt) {
-    return null;
-  }
-
-  if (new Date(tokenRecord.expiresAt).getTime() < Date.now()) {
-    return null;
-  }
-
-  return tokenRecord;
+      return {
+        ...product,
+        quantity: row.quantity,
+        lineTotalCents: product.priceCents * row.quantity
+      };
+    })
+    .filter(Boolean);
 }
 
-async function markResetTokenUsed(tokenId) {
+async function setCartItemQuantity(userId, productId, quantity) {
   if (!pool) {
+    throw new Error("Database connection is required for cart storage.");
+  }
+
+  if (quantity <= 0) {
+    await pool.query(
+      `
+        DELETE FROM cart_items
+        WHERE user_id = $1 AND product_id = $2
+      `,
+      [userId, productId]
+    );
     return;
   }
 
   await pool.query(
     `
-      UPDATE password_reset_tokens
-      SET used_at = NOW()
-      WHERE id = $1
+      INSERT INTO cart_items (id, user_id, product_id, quantity, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (user_id, product_id)
+      DO UPDATE SET
+        quantity = EXCLUDED.quantity,
+        updated_at = NOW()
     `,
-    [tokenId]
+    [`CRT-${Date.now().toString(36).toUpperCase()}-${productId}`, userId, productId, quantity]
   );
 }
 
-async function updateUserPassword(userId, password) {
+async function clearCartItems(userId) {
   if (!pool) {
-    throw new Error("Database connection is required for password updates.");
+    throw new Error("Database connection is required for cart storage.");
   }
 
   await pool.query(
     `
-      UPDATE users
-      SET password = $2
-      WHERE id = $1
+      DELETE FROM cart_items
+      WHERE user_id = $1
     `,
-    [userId, String(password)]
+    [userId]
   );
 }
 
-async function sendPasswordResetEmail({ email, token }) {
-  if (!mailTransport) {
-    throw new Error("SMTP is not configured. Add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM.");
+async function listUsersForAdmin() {
+  if (!pool) {
+    throw new Error("Database connection is required for admin data.");
   }
 
-  const resetUrl = `${publicAppUrl}/reset-password?token=${encodeURIComponent(token)}`;
+  const result = await pool.query(`
+    SELECT
+      id,
+      name,
+      email,
+      created_at AS "createdAt"
+    FROM users
+    ORDER BY created_at DESC
+    LIMIT 50
+  `);
 
-  await mailTransport.sendMail({
-    from: smtpFrom,
-    to: email,
-    subject: `${appName} password reset`,
-    text: `Reset your password using this link: ${resetUrl}`,
-    html: `
-      <p>Use the link below to reset your password for ${appName}.</p>
-      <p><a href="${resetUrl}">${resetUrl}</a></p>
-      <p>This link expires in 30 minutes.</p>
-    `
-  });
+  return result.rows;
 }
+
+async function listCartItemsForAdmin() {
+  if (!pool) {
+    throw new Error("Database connection is required for admin data.");
+  }
+
+  const result = await pool.query(`
+    SELECT
+      id,
+      user_id AS "userId",
+      product_id AS "productId",
+      quantity,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM cart_items
+    ORDER BY updated_at DESC
+    LIMIT 100
+  `);
+
+  return result.rows;
+}
+
 
 async function getBookingCount() {
   if (!pool) {
@@ -335,6 +336,206 @@ app.get("/api/bookings", async (_request, response) => {
     response.status(500).json({
       ok: false,
       message: error instanceof Error ? error.message : "Could not load bookings."
+    });
+  }
+});
+
+app.get("/api/admin/data", async (_request, response) => {
+  if (!pool) {
+    response.status(503).json({
+      ok: false,
+      message: "Database is not connected, so admin data is unavailable right now."
+    });
+    return;
+  }
+
+  try {
+    const [users, bookingsData, cartItems] = await Promise.all([
+      listUsersForAdmin(),
+      listBookings(),
+      listCartItemsForAdmin()
+    ]);
+
+    response.json({
+      ok: true,
+      database: "postgres",
+      users,
+      bookings: bookingsData,
+      cartItems
+    });
+  } catch (error) {
+    response.status(500).json({
+      ok: false,
+      message: error instanceof Error ? error.message : "Could not load admin data."
+    });
+  }
+});
+
+app.get("/api/cart", async (request, response) => {
+  const userId = String(request.query.userId || "");
+
+  if (!userId) {
+    response.status(400).json({
+      ok: false,
+      message: "Missing userId."
+    });
+    return;
+  }
+
+  if (!pool) {
+    response.status(503).json({
+      ok: false,
+      message: "Database is not connected, so cart storage is unavailable right now."
+    });
+    return;
+  }
+
+  try {
+    const user = await findUserById(userId);
+
+    if (!user) {
+      response.status(404).json({
+        ok: false,
+        message: "User account not found."
+      });
+      return;
+    }
+
+    response.json({
+      ok: true,
+      items: await listCartItems(userId),
+      database: "postgres"
+    });
+  } catch (error) {
+    response.status(500).json({
+      ok: false,
+      message: error instanceof Error ? error.message : "Could not load cart."
+    });
+  }
+});
+
+app.put("/api/cart/items/:productId", async (request, response) => {
+  const productId = String(request.params.productId || "");
+  const userId = String(request.body?.userId || "");
+  const quantity = Number.parseInt(String(request.body?.quantity ?? ""), 10);
+
+  if (!userId || !productId || Number.isNaN(quantity) || quantity < 0) {
+    response.status(400).json({
+      ok: false,
+      message: "userId, productId, and a valid quantity are required."
+    });
+    return;
+  }
+
+  if (!pool) {
+    response.status(503).json({
+      ok: false,
+      message: "Database is not connected, so cart storage is unavailable right now."
+    });
+    return;
+  }
+
+  if (!productCatalog.has(productId)) {
+    response.status(400).json({
+      ok: false,
+      message: "Unknown store product."
+    });
+    return;
+  }
+
+  try {
+    const user = await findUserById(userId);
+
+    if (!user) {
+      response.status(404).json({
+        ok: false,
+        message: "User account not found."
+      });
+      return;
+    }
+
+    await setCartItemQuantity(userId, productId, quantity);
+
+    response.json({
+      ok: true,
+      items: await listCartItems(userId),
+      database: "postgres"
+    });
+  } catch (error) {
+    response.status(500).json({
+      ok: false,
+      message: error instanceof Error ? error.message : "Could not update cart."
+    });
+  }
+});
+
+app.delete("/api/cart/items/:productId", async (request, response) => {
+  const productId = String(request.params.productId || "");
+  const userId = String(request.query.userId || "");
+
+  if (!userId || !productId) {
+    response.status(400).json({
+      ok: false,
+      message: "userId and productId are required."
+    });
+    return;
+  }
+
+  if (!pool) {
+    response.status(503).json({
+      ok: false,
+      message: "Database is not connected, so cart storage is unavailable right now."
+    });
+    return;
+  }
+
+  try {
+    await setCartItemQuantity(userId, productId, 0);
+
+    response.json({
+      ok: true,
+      items: await listCartItems(userId),
+      database: "postgres"
+    });
+  } catch (error) {
+    response.status(500).json({
+      ok: false,
+      message: error instanceof Error ? error.message : "Could not remove cart item."
+    });
+  }
+});
+
+app.delete("/api/cart", async (request, response) => {
+  const userId = String(request.query.userId || "");
+
+  if (!userId) {
+    response.status(400).json({
+      ok: false,
+      message: "Missing userId."
+    });
+    return;
+  }
+
+  if (!pool) {
+    response.status(503).json({
+      ok: false,
+      message: "Database is not connected, so cart storage is unavailable right now."
+    });
+    return;
+  }
+
+  try {
+    await clearCartItems(userId);
+
+    response.json({
+      ok: true,
+      items: [],
+      database: "postgres"
+    });
+  } catch (error) {
+    response.status(500).json({
+      ok: false,
+      message: error instanceof Error ? error.message : "Could not clear cart."
     });
   }
 });
@@ -450,135 +651,6 @@ app.post("/api/login", async (request, response) => {
     response.status(500).json({
       ok: false,
       message: error instanceof Error ? error.message : "Could not log in."
-    });
-  }
-});
-
-app.post("/api/forgot-password", async (request, response) => {
-  const email = String(request.body?.email || "").trim().toLowerCase();
-
-  if (!email) {
-    response.status(400).json({
-      ok: false,
-      message: "Please enter your email."
-    });
-    return;
-  }
-
-  if (!pool) {
-    response.status(503).json({
-      ok: false,
-      message: "Database is not connected, so password recovery is unavailable right now."
-    });
-    return;
-  }
-
-  try {
-    const user = await findUserByEmail(email);
-
-    if (!user) {
-      response.status(404).json({
-        ok: false,
-        message: "No account was found for that email."
-      });
-      return;
-    }
-
-    const { rawToken } = await createPasswordResetToken(user);
-    await sendPasswordResetEmail({
-      email,
-      token: rawToken
-    });
-
-    response.json({
-      ok: true,
-      message: `Password reset instructions were sent to ${email}.`
-    });
-  } catch (error) {
-    response.status(500).json({
-      ok: false,
-      message: error instanceof Error ? error.message : "Could not start password recovery."
-    });
-  }
-});
-
-app.get("/api/reset-password/validate", async (request, response) => {
-  const token = String(request.query.token || "");
-
-  if (!token) {
-    response.status(400).json({
-      ok: false,
-      message: "Missing reset token."
-    });
-    return;
-  }
-
-  try {
-    const tokenRecord = await findValidResetToken(token);
-
-    if (!tokenRecord) {
-      response.status(400).json({
-        ok: false,
-        message: "This reset link is invalid or has expired."
-      });
-      return;
-    }
-
-    response.json({
-      ok: true,
-      email: tokenRecord.email
-    });
-  } catch (error) {
-    response.status(500).json({
-      ok: false,
-      message: error instanceof Error ? error.message : "Could not validate reset token."
-    });
-  }
-});
-
-app.post("/api/reset-password", async (request, response) => {
-  const token = String(request.body?.token || "");
-  const password = String(request.body?.password || "");
-
-  if (!token || !password) {
-    response.status(400).json({
-      ok: false,
-      message: "Reset token and new password are required."
-    });
-    return;
-  }
-
-  if (!isStrongPassword(password)) {
-    response.status(400).json({
-      ok: false,
-      message:
-        "Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and special character."
-    });
-    return;
-  }
-
-  try {
-    const tokenRecord = await findValidResetToken(token);
-
-    if (!tokenRecord) {
-      response.status(400).json({
-        ok: false,
-        message: "This reset link is invalid or has expired."
-      });
-      return;
-    }
-
-    await updateUserPassword(tokenRecord.userId, password);
-    await markResetTokenUsed(tokenRecord.id);
-
-    response.json({
-      ok: true,
-      message: "Password reset successfully. You can now log in with your new password."
-    });
-  } catch (error) {
-    response.status(500).json({
-      ok: false,
-      message: error instanceof Error ? error.message : "Could not reset password."
     });
   }
 });
